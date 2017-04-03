@@ -21,6 +21,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
     private final static String MENU_WHOLE = "Copy whole message";
     private final static int HEADERS_MSG = 1;
     private final static String MENU_HEADERS = "Copy headers";
+    private final static int SELECTED_MSG = 2;
+    private final static String MENU_SELECTED = "Copy selected";
 
     @Override
     public void registerExtenderCallbacks(IBurpExtenderCallbacks callbacks)
@@ -53,6 +55,15 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
             });
         l.add(i2);
 
+        JMenuItem i3 = new JMenuItem(MENU_SELECTED);
+        i3.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    copyMessages(invocation, SELECTED_MSG);
+                }
+            });
+        l.add(i3);
+
         return l;
     }
 
@@ -64,6 +75,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
 
         byte [] httpMessage = null;
         String headers = null;
+        String selected = null;
+        int[] selection = invocation.getSelectionBounds();
 
         switch (invocation.getInvocationContext()) {
         case IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_REQUEST :
@@ -80,6 +93,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
             break;
         }
 
+        if ((selection != null) && (selection[0] != selection[1])) {
+            selected = (new String(httpMessage)).substring(selection[0], selection[1]);
+        }
+
         String retString = null;
 
         switch (option) {
@@ -88,6 +105,15 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
             break;
         case HEADERS_MSG:
             retString = headers;
+            retString += NEWLINE;
+            retString += SKIPPED;
+            break;
+        case SELECTED_MSG:
+            retString = headers;
+            retString += NEWLINE;
+            retString += SKIPPED;
+            retString += NEWLINE;
+            retString += selected;
             retString += NEWLINE;
             retString += SKIPPED;
             break;
