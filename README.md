@@ -6,6 +6,8 @@ Copies selected request/response to clipboard with some optional post-processing
 Available functions:
  - Copy request/response as-is
  - Copy only headers
+ - Copy only selected part with headers
+ - Copy Burp's highlights in case finding is selected
 
 Building
 --------
@@ -27,3 +29,5 @@ The whole project is available under MIT license, see `LICENSE.txt`.
 
 Thanks to https://github.com/OgaworldEX/BurpExtender_OgaCopy and
 https://github.com/silentsignal/burp-requests for some snippets. :-)
+
+Thanks to https://github.com/sapo/sscan.git for examples how to use markers.
