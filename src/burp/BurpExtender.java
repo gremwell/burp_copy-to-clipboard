@@ -15,7 +15,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
     private final static String NAME = "Copy requests/responses to clipboard";
 
     private final static String SKIPPED = "... skipped ...";
-    private final static String NEWLINE = "\r\n";
+    private final static String NEWLINE = "\n";
 
     private final static int WHOLE_MSG = 0;
     private final static String MENU_WHOLE = "Copy whole message";
@@ -139,7 +139,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
 
         switch (option) {
         case WHOLE_MSG:
-            retString = new String(httpMessage);
+            retString = new String(httpMessage).replaceAll("\r", "");
             break;
         case HEADERS_MSG:
             retString = headers;
