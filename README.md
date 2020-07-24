@@ -12,15 +12,8 @@ Available functions:
 Building
 --------
 
- - Save Burp Extender API into `src` (go to Extender --> APIs, press "Save
-   Interface Files" button)
- - Execute `ant`, and you'll have the plugin ready in `burp_copy-to-clipboard.jar`
-
-Dependencies
-------------
-
- - JDK 1.7+
- - Apache ANT (Debian/Ubuntu package: `ant`)
+ - Execute `gradle build` in the project's root directory
+ - Grab `burp_copy-to-clipboard.jar` from `./build/libs/`
 
 License
 -------
