@@ -2,3 +2,7 @@ burp_copy-to-clipboard.jar
 
 build/
 .gradle/
+.classpath
+.project
+.settings/
+bin/
