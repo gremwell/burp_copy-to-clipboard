@@ -4,17 +4,21 @@ import java.util.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.awt.Toolkit;
-import javax.swing.JMenuItem;
+import java.awt.GridLayout;
+import java.awt.Frame;
+import javax.swing.*;
+import javax.swing.event.MenuEvent;
+import javax.swing.event.MenuListener;
 import java.io.PrintWriter;
 
 public class BurpExtender implements IBurpExtender, IContextMenuFactory, ClipboardOwner
 {
     private IExtensionHelpers helpers;
     private static PrintWriter burpStdout;
+    private IBurpExtenderCallbacks callbacks;
 
     private final static String NAME = "Copy requests/responses to clipboard";
 
-    private final static String SKIPPED = "... skipped ...";
     private final static String NEWLINE = "\n";
 
     private final static int WHOLE_MSG = 0;
@@ -27,12 +31,14 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
     private final static String MENU_HIGHLIGHTS = "Copy issue highlights";
 
     @Override
-    public void registerExtenderCallbacks(IBurpExtenderCallbacks callbacks)
+    public void registerExtenderCallbacks(IBurpExtenderCallbacks incallbacks)
     {
+        callbacks = incallbacks;
         helpers = callbacks.getHelpers();
         callbacks.setExtensionName(NAME);
         callbacks.registerContextMenuFactory(this);
         burpStdout = new PrintWriter(callbacks.getStdout(), true);
+        SwingUtilities.invokeLater(new ConfigMenu(callbacks));
     }
 
     @Override
@@ -97,6 +103,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
 
         String retString = null;
 
+        String skippedString = callbacks.loadExtensionSetting("skipped");
+
         // in case issue is selected, use it
         // otherwise, fall back to selected messages
         if (invocation.getSelectedIssues() != null) {
@@ -144,12 +152,12 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
         case HEADERS_MSG:
             retString = headers;
             retString += NEWLINE;
-            retString += SKIPPED;
+            retString += skippedString;
             break;
         case SELECTED_MSG:
             retString = headers;
             retString += NEWLINE;
-            retString += SKIPPED;
+            retString += skippedString;
             retString += NEWLINE;
             String selected = null;
             int[] selection = invocation.getSelectionBounds();
@@ -158,19 +166,19 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
             }
             retString += selected;
             retString += NEWLINE;
-            retString += SKIPPED;
+            retString += skippedString;
             break;
         case HIGHLIGHTS_MSG:
             retString = headers;
             retString += NEWLINE;
-            retString += SKIPPED;
+            retString += skippedString;
             retString += NEWLINE;
 
             List<String> markers = processMarkers(markerIndexes, httpMessage);
             for (String marker : markers) {
                 retString += marker;
                 retString += NEWLINE;
-                retString += SKIPPED;
+                retString += skippedString;
                 retString += NEWLINE;
             }
             break;
@@ -209,4 +217,108 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
 
     @Override
     public void lostOwnership(Clipboard aClipboard, Transferable aContents) {}
+}
+
+class ConfigMenu implements Runnable, MenuListener, IExtensionStateListener {
+    private JMenu menuButton;
+    static IBurpExtenderCallbacks callbacks;
+
+    ConfigMenu(final IBurpExtenderCallbacks incallbacks) {
+        callbacks = incallbacks;
+        callbacks.registerExtensionStateListener(this);
+    }
+
+    public void run() {
+        menuButton = new JMenu("Copy to Clipboard");
+        menuButton.addMenuListener(this);
+        JMenuBar burpMenuBar = getBurpFrame().getJMenuBar();
+        burpMenuBar.add(menuButton);
+    }
+
+    static JFrame getBurpFrame() {
+        for (Frame f : Frame.getFrames()) {
+            if (f.isVisible() && f.getTitle().startsWith(("Burp Suite"))) {
+                return (JFrame) f;
+            }
+        }
+        return null;
+    }
+
+    public void menuSelected(MenuEvent e) {
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                showSettings();
+            }
+        });
+    }
+
+    public void showSettings() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new GridLayout(0, 2));
+
+        HashMap<String, Object> configured = new HashMap<>();
+
+        panel.add(new JLabel("\n" + "skipped string" + ": "));
+        String val1 = callbacks.loadExtensionSetting("skipped");
+        if (val1 == null) {
+            val1 = "...skipped...";
+        }
+        JTextField box1 = new JTextField(val1);
+        panel.add(box1);
+        configured.put("skipped", box1);
+
+        panel.add(new JLabel("\n" + "minimize headers" + ": "));
+        String val2 = callbacks.loadExtensionSetting("minimize");
+        boolean val2x = false;
+        if (val2 != null) {
+            if (val2.equals("true")) {
+                val2x = true;
+            }
+        }
+        JCheckBox box2 = new JCheckBox();
+        box2.setSelected(val2x);
+        panel.add(box2);
+        configured.put("minimize", box2);
+
+        int result = JOptionPane.showConfirmDialog(getBurpFrame(), panel, "Copy to Clipboard Config", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            for(String key: configured.keySet()) {
+                Object val = configured.get(key);
+                if (val instanceof JCheckBox) {
+                    val = ((JCheckBox) val).isSelected();
+                }
+                else if (val instanceof JFormattedTextField) {
+                    val = Integer.parseInt(((JTextField) val).getText());
+                }
+                else {
+                    val = ((JTextField) val).getText();
+                }
+                callbacks.saveExtensionSetting(key, encode(val));
+            }
+        }
+    }
+
+    private String encode(Object value) {
+        String encoded;
+        if (value instanceof Boolean) {
+            encoded = String.valueOf(value);
+        } else if (value instanceof Integer) {
+            encoded = String.valueOf(value);
+        } else {
+            encoded = (String)value;
+        }
+        return encoded;
+    }
+
+    public void menuDeselected(MenuEvent e) {
+    }
+
+    public void menuCanceled(MenuEvent e) {
+    }
+
+    public void extensionUnloaded() {
+        JMenuBar jMenuBar = getBurpFrame().getJMenuBar();
+        jMenuBar.remove(menuButton);
+        jMenuBar.repaint();
+    }
 }
