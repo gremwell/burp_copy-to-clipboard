@@ -9,6 +9,8 @@ import java.awt.Frame;
 import javax.swing.*;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
+import javax.swing.text.NumberFormatter;
+import java.text.NumberFormat;
 import java.io.PrintWriter;
 
 public class BurpExtender implements IBurpExtender, IContextMenuFactory, ClipboardOwner
@@ -29,6 +31,8 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
     private final static String MENU_SELECTED = "Copy selected";
     private final static int HIGHLIGHTS_MSG = 3;
     private final static String MENU_HIGHLIGHTS = "Copy issue highlights";
+
+    private final static int HEADER_TRAILER_LEN = 10;
 
     @Override
     public void registerExtenderCallbacks(IBurpExtenderCallbacks incallbacks)
@@ -97,6 +101,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
 
         byte [] httpMessage = null;
         String headers = null;
+        String body = null;
 
         List<int[]> markerIndexes = null;
         IHttpRequestResponseWithMarkers reqRespM = null;
@@ -104,6 +109,14 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
         String retString = null;
 
         String skippedString = callbacks.loadExtensionSetting("skipped");
+        boolean doMinimize = false;
+        if ((callbacks.loadExtensionSetting("minimize") != null) && (callbacks.loadExtensionSetting("minimize").equals("true"))) {
+            doMinimize = true;
+        }
+        int maxHeaderLen = 88;
+        if (callbacks.loadExtensionSetting("maxheaderlen") != null) {
+            maxHeaderLen = Integer.parseInt(callbacks.loadExtensionSetting("maxheaderlen"));
+        }
 
         // in case issue is selected, use it
         // otherwise, fall back to selected messages
@@ -127,14 +140,16 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
         case IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_REQUEST :
             httpMessage = httpReqRes.getRequest();
             IRequestInfo reqI = helpers.analyzeRequest(httpReqRes);
-            headers = processHeaders(reqI.getHeaders());
+            headers = processHeaders(reqI.getHeaders(), doMinimize, skippedString, maxHeaderLen);
+            body = (new String(httpMessage)).substring(reqI.getBodyOffset());
             break;
         case IContextMenuInvocation.CONTEXT_MESSAGE_EDITOR_RESPONSE :
         case IContextMenuInvocation.CONTEXT_MESSAGE_VIEWER_RESPONSE :
         case IContextMenuInvocation.CONTEXT_SCANNER_RESULTS : /* get highlighted items only from response */
             httpMessage = httpReqRes.getResponse();
             IResponseInfo respI = helpers.analyzeResponse(httpMessage);
-            headers = processHeaders(respI.getHeaders());
+            headers = processHeaders(respI.getHeaders(), doMinimize, skippedString, maxHeaderLen);
+            body = (new String(httpMessage)).substring(respI.getBodyOffset());
 
             if (reqRespM != null) {
                 markerIndexes = reqRespM.getResponseMarkers();
@@ -147,7 +162,9 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
 
         switch (option) {
         case WHOLE_MSG:
-            retString = new String(httpMessage).replaceAll("\r", "");
+            retString = headers;
+            retString += NEWLINE;
+            retString += body;
             break;
         case HEADERS_MSG:
             retString = headers;
@@ -188,11 +205,17 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
             .setContents(new StringSelection(retString), this);
     }
 
-    private static String processHeaders(List<String> headers) {
+    private static String processHeaders(List<String> headers, boolean doMinimize, String skippedString, int maxHeaderLen) {
         String ret = "";
         for (String header : headers) {
             if (header.toLowerCase().startsWith("null"))
                 continue;
+            if (doMinimize && (header.length() > maxHeaderLen)) {
+                int l = skippedString.length();
+                String h1 = header.substring(0, maxHeaderLen - HEADER_TRAILER_LEN - l - 1);
+                String h2 = header.substring(header.length() - HEADER_TRAILER_LEN - 1);
+                header = h1 + skippedString + h2;
+            }
             ret += header + NEWLINE;
         }
         return ret;
@@ -279,6 +302,24 @@ class ConfigMenu implements Runnable, MenuListener, IExtensionStateListener {
         box2.setSelected(val2x);
         panel.add(box2);
         configured.put("minimize", box2);
+
+        NumberFormat format = NumberFormat.getInstance();
+        NumberFormatter onlyInt = new NumberFormatter(format);
+        onlyInt.setValueClass(Integer.class);
+        onlyInt.setMinimum(1);
+        onlyInt.setMaximum(256);
+        onlyInt.setAllowsInvalid(false);
+
+        panel.add(new JLabel("\n" + "max header length" + ": "));
+        JTextField box3 = new JFormattedTextField(onlyInt);
+        String val3 = callbacks.loadExtensionSetting("maxheaderlen");
+        int val3x = 88;
+        if (val3 != null) {
+            val3x = Integer.parseInt(val3);
+        }
+        box3.setText(String.valueOf(val3x));
+        panel.add(box3);
+        configured.put("maxheaderlen", box3);
 
         int result = JOptionPane.showConfirmDialog(getBurpFrame(), panel, "Copy to Clipboard Config", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
