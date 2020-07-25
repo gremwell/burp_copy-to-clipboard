@@ -207,16 +207,20 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory, Clipboa
 
     private static String processHeaders(List<String> headers, boolean doMinimize, String skippedString, int maxHeaderLen) {
         String ret = "";
+        boolean firstLine = true;
         for (String header : headers) {
             if (header.toLowerCase().startsWith("null"))
                 continue;
-            if (doMinimize && (header.length() > maxHeaderLen)) {
+            if (!firstLine && doMinimize && (header.length() > maxHeaderLen)) {
                 int l = skippedString.length();
                 String h1 = header.substring(0, maxHeaderLen - HEADER_TRAILER_LEN - l - 1);
                 String h2 = header.substring(header.length() - HEADER_TRAILER_LEN - 1);
                 header = h1 + skippedString + h2;
             }
             ret += header + NEWLINE;
+            if (firstLine) {
+                firstLine = false;
+            }
         }
         return ret;
     }
