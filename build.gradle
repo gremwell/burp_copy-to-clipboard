@@ -1,11 +1,16 @@
 apply plugin: 'java'
 
+group 'com.gremwell'
+version '1.0.1'
+def burpExtensionHomepage = 'https://github.com/gremwell/burp_copy-to-clipboard'
+def burpExtensionJarName = 'copy-to-clipboard.jar'
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    compile 'net.portswigger.burp.extender:burp-extender-api:1.7.22'
+    implementation 'net.portswigger.burp.extender:burp-extender-api:2.2'
 }
 
 sourceSets {
@@ -20,7 +25,10 @@ sourceSets {
 }
 
 task fatJar(type: Jar) {
-    baseName = project.name + '-all'
+    manifest {
+        attributes("Implementation-Version": project.version, "Implementation-Title": project.name, "Implementation-URL": burpExtensionHomepage)
+    }
+    archiveBaseName = burpExtensionJarName
     from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
     with jar
 }
